@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>モンスト所持キャラ・わくわくの実管理</title>
+<style>
+:root{--bg:#0b1020;--panel:#151d31;--panel2:#1b2740;--line:#293754;--text:#eef3ff;--muted:#9eacc8;--accent:#83b6ff;--good:#74d5a2;--gold:#f5c86b}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#172747 0,#0b1020 52%);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+header{padding:24px 18px 14px;max-width:1100px;margin:auto}h1{font-size:clamp(22px,4vw,30px);margin:0 0 8px}header p{color:var(--muted);margin:0}
+main{max-width:1100px;margin:auto;padding:0 16px 40px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px}.stat strong{display:block;font-size:22px}.stat span{font-size:12px;color:var(--muted)}
+.controls{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px;display:grid;grid-template-columns:1fr 130px 130px auto auto;gap:8px}
+input,select,button{font:inherit;color:var(--text);background:#10182a;border:1px solid var(--line);border-radius:10px;padding:10px}
+button{cursor:pointer;background:var(--panel2);font-weight:650}button:hover{border-color:var(--accent)}button.primary{background:#234c82;border-color:#3972b7}button.danger{color:#ffb5b5}
+.filters{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0}.chip{padding:7px 11px;border-radius:999px;font-size:13px;background:var(--panel2)}.chip.active{background:#254a79;border-color:var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.card{background:linear-gradient(160deg,#18243a,#121a2b);border:1px solid var(--line);border-radius:16px;padding:14px;min-height:140px}
+.cardhead{display:flex;justify-content:space-between;gap:10px;align-items:start}.name{font-weight:750;font-size:17px}.meta{font-size:12px;color:var(--muted);margin-top:4px}.badge{font-size:11px;padding:4px 8px;border-radius:99px;background:#234a3c;color:#9df0c1}
+.copylist{margin-top:12px;display:grid;gap:7px}.copy{background:#10182a;border:1px solid #25334d;border-radius:10px;padding:8px;font-size:12px}.fruit{display:inline-block;margin:3px 3px 0 0;padding:4px 7px;background:#273754;border-radius:6px;color:#d8e6ff}
+.cardactions{display:flex;gap:6px;margin-top:10px}.cardactions button{font-size:12px;padding:7px}
+.empty{padding:30px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:14px}
+dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:16px;width:min(600px,calc(100% - 24px));padding:18px}dialog::backdrop{background:#0009}
+.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.formgrid .wide{grid-column:1/-1}label{font-size:12px;color:var(--muted);display:grid;gap:5px}.copies-editor{margin:12px 0;display:grid;gap:10px}.copyeditor{border:1px solid var(--line);border-radius:12px;padding:10px}.copyeditor h4{margin:0 0 8px}.fruitgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}.dialogactions{display:flex;justify-content:space-between;gap:8px;margin-top:14px;flex-wrap:wrap}
+@media(max-width:720px){.controls{grid-template-columns:1fr 1fr}.controls #search{grid-column:1/-1}.stats{gap:7px}.stat{padding:10px}.stat strong{font-size:19px}.formgrid{grid-template-columns:1fr}.formgrid .wide{grid-column:auto}}
+</style>
+</head>
+<body>
+<header><h1>🎮 モンスト キャラ管理</h1><p>所持状況とわくわくの実を、キャラごと・1体ごとに記録</p></header>
+<main>
+<div class="stats"><div class="stat"><strong id="ownedCount">0</strong><span>登録キャラ数（所持）</span></div><div class="stat"><strong id="copyCount">0</strong><span>所持総数</span></div><div class="stat"><strong id="fruitCount">0</strong><span>登録済み わくわくの実</span></div></div>
+<div class="controls">
+<input id="search" placeholder="キャラ名・わくわくの実で検索">
+<select id="element"><option value="">属性：すべて</option><option>火</option><option>水</option><option>木</option><option>光</option><option>闇</option></select>
+<select id="rarity"><option value="">レア度：すべて</option><option>★5</option><option>★6</option></select>
+<select id="accountFilter"><option value="">アカウント：すべて</option></select>
+<button class="primary" id="addBtn">＋ キャラ登録</button><button id="exportBtn">バックアップ</button>
+</div>
+<div class="filters" id="accountSettings"></div>
+<div class="filters">
+<button class="chip active" data-status="all">すべて</button><button class="chip" data-status="owned">所持のみ</button><button class="chip" data-status="unowned">未所持のみ</button>
+<button class="chip" id="importBtn">バックアップ読込</button>
+</div>
+<div id="grid" class="grid"></div>
+</main>
+<dialog id="editor">
+<h2 id="dialogTitle">キャラ登録</h2>
+<div class="formgrid">
+<label>キャラ名<input id="charName" placeholder="例：ルシファー"></label>
+<label>属性<select id="charElement"><option value="">選択</option><option>火</option><option>水</option><option>木</option><option>光</option><option>闇</option></select></label>
+<label>レア度<select id="charRarity"><option>★6</option><option>★5</option></select></label>
+<label>所持数<input id="charCopies" type="number" min="0" max="20" value="1"></label>
+</div>
+<div id="copiesEditor" class="copies-editor"></div>
+<div class="dialogactions"><button class="danger" id="deleteBtn" style="display:none">削除</button><div><button id="cancelBtn">キャンセル</button> <button class="primary" id="saveBtn">保存</button></div></div>
+</dialog>
+<input type="file" id="fileInput" accept="application/json" hidden>
+<script>
+const fruits=["同族加撃","同族加撃速","同族加命撃","同族加命","同族加速","撃種加撃","撃種加撃速","撃種加命撃","撃種加命","撃種加速","戦型加撃","戦型加撃速","戦型加命撃","戦型加命","戦型加速","熱き友撃","速必殺","将命削り","兵命削り","怪我減り","ちび癒し","毒がまん","ハート強化","スコア稼ぎ","学び","荒稼ぎ","Sランク","スピクリ","その他"];
+let accounts=JSON.parse(localStorage.getItem("monstAccounts")||"null")||["アカウント1","アカウント2","アカウント3","アカウント4"];
+let raw=JSON.parse(localStorage.getItem("monstTracker")||"null");
+let data=raw||[
+{id:1,name:"ルシファー",element:"闇",rarity:"★6",copies:[{account:accounts[0],fruits:["熱き友撃","同族加撃"]},{account:accounts[0],fruits:["速必殺","将命削り"]},{account:accounts[2],fruits:["同族加撃速","兵命削り"]}]},
+{id:2,name:"マサムネ",element:"火",rarity:"★6",copies:[{account:accounts[0],fruits:["同族加撃","同族加撃速"]},{account:accounts[1],fruits:[]}]},
+{id:3,name:"ヤクモ",element:"木",rarity:"★6",copies:[{account:accounts[1],fruits:["熱き友撃","撃種加撃"]},{account:accounts[1],fruits:["同族加命撃"]},{account:accounts[2],fruits:[]}]},
+{id:4,name:"ネオ",element:"水",rarity:"★6",copies:[{account:accounts[3],fruits:["熱き友撃","速必殺"]}]},
+{id:5,name:"サトリ",element:"光",rarity:"★6",copies:[]}
+];
+// migrate old array-style copy data
+data=data.map(c=>({...c,copies:(c.copies||[]).map(cp=>Array.isArray(cp)?{account:accounts[0],fruits:cp}:{account:cp.account||accounts[0],fruits:cp.fruits||[]})}));
+let status="all",editingId=null;
+const $=id=>document.getElementById(id);
+function save(){localStorage.setItem("monstTracker",JSON.stringify(data));localStorage.setItem("monstAccounts",JSON.stringify(accounts));render()}
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+function updateAccountUI(){
+ $("accountSettings").innerHTML=accounts.map((a,i)=>`<button class="chip" onclick="renameAccount(${i})">✏️ ${esc(a)}</button>`).join("")+`<span class="meta">アカウント名をタップして変更</span>`;
+ const cur=$("accountFilter").value;
+ $("accountFilter").innerHTML='<option value="">アカウント：すべて</option>'+accounts.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join("");
+ $("accountFilter").value=accounts.includes(cur)?cur:"";
+}
+window.renameAccount=i=>{const n=prompt(`アカウント${i+1}の表示名`,accounts[i]);if(n&&n.trim()){const old=accounts[i];accounts[i]=n.trim();data.forEach(c=>c.copies.forEach(cp=>{if(cp.account===old)cp.account=accounts[i]}));save()}};
+function render(){
+ updateAccountUI();
+ const q=$("search").value.trim().toLowerCase(),el=$("element").value,ra=$("rarity").value,ac=$("accountFilter").value;
+ const filtered=data.filter(c=>(status==="all"||(status==="owned"?c.copies.length>0:c.copies.length===0))&&(!el||c.element===el)&&(!ra||c.rarity===ra)&&(!ac||c.copies.some(cp=>cp.account===ac))&&(!q||c.name.toLowerCase().includes(q)||c.copies.some(cp=>cp.account.toLowerCase().includes(q)||cp.fruits.some(f=>f.toLowerCase().includes(q)))));
+ $("ownedCount").textContent=data.filter(c=>c.copies.length>0).length;
+ $("copyCount").textContent=data.reduce((n,c)=>n+c.copies.length,0);
+ $("fruitCount").textContent=data.reduce((n,c)=>n+c.copies.reduce((m,cp)=>m+cp.fruits.length,0),0);
+ $("grid").innerHTML=filtered.length?filtered.map(c=>`<article class="card"><div class="cardhead"><div><div class="name">${esc(c.name)}</div><div class="meta">${c.element||"属性未設定"} ・ ${c.rarity}</div></div><span class="badge">${c.copies.length}体所持</span></div><div class="copylist">${c.copies.length?c.copies.map((copy,i)=>`<div class="copy"><b>${esc(copy.account)}・${i+1}体目</b><br>${copy.fruits.length?copy.fruits.map(f=>`<span class="fruit">${esc(f)}</span>`).join(""):"<span class='meta'>実未設定</span>"}</div>`).join(""):"<div class='copy'>未所持</div>"}</div><div class="cardactions"><button onclick="edit(${c.id})">編集</button><button onclick="addCopy(${c.id})">＋ 1体追加</button></div></article>`).join(""):`<div class="empty">該当キャラがありません。キャラ登録から追加できます。</div>`;
+}
+function openEditor(c=null){
+ editingId=c?.id??null;
+ $("dialogTitle").textContent=c?"キャラ編集":"キャラ登録";
+ $("charName").value=c?.name||"";
+ $("charElement").value=c?.element||"";
+ $("charRarity").value=c?.rarity||"★6";
+ $("charCopies").value=c?c.copies.length:1;
+ $("deleteBtn").style.display=c?"inline-block":"none";
+ buildCopyEditors(c?.copies||[{account:accounts[0],fruits:[]}]);
+ // showModal() can fail in some embedded/mobile preview contexts; use open attribute fallback.
+ try { if(!$("editor").open) $("editor").showModal(); }
+ catch(err) { $("editor").setAttribute("open",""); }
+ if(!$("editor").open) $("editor").setAttribute("open","");
+}
+function buildCopyEditors(copies){$("copiesEditor").innerHTML="";const n=Math.max(0,Math.min(20,Number($("charCopies").value)||0));for(let i=0;i<n;i++){const selected= copies[i]||{account:accounts[0],fruits:[]};const div=document.createElement("div");div.className="copyeditor";div.innerHTML=`<h4>${i+1}体目</h4><label>所持アカウント<select class="accountSelect">${accounts.map(a=>`<option ${selected.account===a?"selected":""}>${esc(a)}</option>`).join("")}</select></label><div class="fruitgrid" style="margin-top:8px">${fruits.map(f=>`<label style="display:flex;align-items:center;gap:5px;color:var(--text)"><input type="checkbox" value="${esc(f)}" ${selected.fruits.includes(f)?"checked":""}>${esc(f)}</label>`).join("")}</div>`;$("copiesEditor").appendChild(div)}}
+$("charCopies").addEventListener("change",()=>{const old=[...$("copiesEditor").querySelectorAll(".copyeditor")].map(d=>({account:d.querySelector(".accountSelect").value,fruits:[...d.querySelectorAll("input:checked")].map(x=>x.value)}));buildCopyEditors(old)});
+$("addBtn").addEventListener("click",e=>{e.preventDefault();openEditor();});
+$("cancelBtn").addEventListener("click",e=>{e.preventDefault();try{$("editor").close()}catch{}$("editor").removeAttribute("open");});
+$("saveBtn").onclick=()=>{const name=$("charName").value.trim();if(!name){alert("キャラ名を入力してください");return}const copies=[...$("copiesEditor").querySelectorAll(".copyeditor")].map(d=>({account:d.querySelector(".accountSelect").value,fruits:[...d.querySelectorAll("input:checked")].map(x=>x.value)}));if(editingId){const c=data.find(x=>x.id===editingId);Object.assign(c,{name,element:$("charElement").value,rarity:$("charRarity").value,copies})}else data.push({id:Date.now(),name,element:$("charElement").value,rarity:$("charRarity").value,copies});try{$("editor").close()}catch{}$("editor").removeAttribute("open");save()};
+$("deleteBtn").onclick=()=>{if(confirm("このキャラを削除しますか？")){data=data.filter(c=>c.id!==editingId);try{$("editor").close()}catch{}$("editor").removeAttribute("open");save()}};
+window.edit=id=>openEditor(data.find(c=>c.id===id));
+window.addCopy=id=>{const c=data.find(c=>c.id===id);c.copies.push({account:accounts[0],fruits:[]});save()};
+$("search").oninput=render;$("element").onchange=render;$("rarity").onchange=render;$("accountFilter").onchange=render;
+document.querySelectorAll("[data-status]").forEach(b=>b.onclick=()=>{status=b.dataset.status;document.querySelectorAll("[data-status]").forEach(x=>x.classList.toggle("active",x===b));render()});
+$("exportBtn").onclick=()=>{const blob=new Blob([JSON.stringify({accounts,data},null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="monst-character-data.json";a.click();URL.revokeObjectURL(a.href)};
+$("importBtn").onclick=()=>$("fileInput").click();
+$("fileInput").onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const parsed=JSON.parse(r.result);if(Array.isArray(parsed)){data=parsed}else{accounts=parsed.accounts||accounts;data=parsed.data||[]}data=data.map(c=>({...c,copies:(c.copies||[]).map(cp=>Array.isArray(cp)?{account:accounts[0],fruits:cp}:{account:cp.account||accounts[0],fruits:cp.fruits||[]})}));save();alert("読み込みました")}catch{alert("ファイル形式が正しくありません")}};r.readAsText(f);e.target.value=""};
+render();
+</script>
+</body>
+</html>
